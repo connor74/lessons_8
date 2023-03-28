@@ -37,7 +37,7 @@ df = (
     .option('kafka.security.protocol', 'SASL_SSL') 
     .option('kafka.sasl.mechanism', 'SCRAM-SHA-512') 
     .option('kafka.sasl.jaas.config',
-              'org.apache.kafka.common.security.scram.ScramLoginModule required username=\"de-student\" password=\"ltcneltyn\";') 
+              'org.apache.kafka.common.security.scram.ScramLoginModule required username=\"...\" password=\"...\";') 
     .option("subscribe", "persist_topic") 
     .load()
 )
