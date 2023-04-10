@@ -2,6 +2,7 @@ import os
 
 from datetime import datetime
 from pyspark.sql import SparkSession, DataFrame
+from pyspark.sql import functions as F
 from pyspark.sql.functions import from_json, to_json, col, lit, struct
 from pyspark.sql.types import StructType, StructField, StringType, LongType
 
@@ -27,6 +28,27 @@ message_schema = StructType([
     StructField("datetime_created", LongType()),
 ])
 
+def create_table():
+    query = """
+    CREATE TABLE public.subscribers_feedback (
+        id serial4 NOT NULL,
+        restaurant_id text NOT NULL,
+        adv_campaign_id text NOT NULL,
+        adv_campaign_content text NOT NULL,
+        adv_campaign_owner text NOT NULL,
+        adv_campaign_owner_contact text NOT NULL,
+        adv_campaign_datetime_start int8 NOT NULL,
+        adv_campaign_datetime_end int8 NOT NULL,
+        datetime_created int8 NOT NULL,
+        client_id text NOT NULL,
+        trigger_datetime_created int4 NOT NULL,
+        feedback varchar NULL,
+        CONSTRAINT id_pk PRIMARY KEY (id)
+    );
+    """
+    
+    
+
 
 
 
@@ -51,7 +73,7 @@ def read_stream(spark: SparkSession) -> DataFrame:
     return stream_df \
         .select(from_json(col("value").cast("string"), message_schema).alias("parsed_key_value")) \
         .select(col("parsed_key_value.*")) \
-        .where((col("adv_campaign_datetime_start") < current_timestamp_utc) & (col("adv_campaign_datetime_end") > current_timestamp_utc)) \
+        .where((col("adv_campaign_datetime_start") < current_timestamp_utc) & (col("adv_campaign_datetime_end") > current_timestamp_utc))
 
 def read_data(spark: SparkSession) -> DataFrame:
     df = spark.read \
@@ -62,7 +84,39 @@ def read_data(spark: SparkSession) -> DataFrame:
         .option('user', 'student') \
         .option('password', 'de-student') \
         .load()
+    
     return df
+
+def join(df1: DataFrame, df2: DataFrame)-> DataFrame:
+    return df1.crossJoin(df2)
+
+
+def foreach_batch_function(df: DataFrame):
+    df.persist()
+    # сохраняем df в памяти, чтобы не создавать df заново перед отправкой в Kafka
+    ...
+    # записываем df в PostgreSQL с полем feedback
+    ...
+    # создаём df для отправки в Kafka. Сериализация в json.
+    ...
+    # отправляем сообщения в результирующий топик Kafka без поля feedback
+    ...
+    # очищаем память от df
+    ...
+    pass
+
+
+def save_data(df):
+    df.write \
+        .mode("append") \
+        .format("jdbc") \
+        .option("url", "jdbc:postgresql://localhost:5432/de") \
+        .option('driver', 'org.postgresql.Driver') \
+        .option("dbtable", "subscribers_feedback") \
+        .option("user", "jovyan") \
+        .option("password", "jovyan") \
+        .save()
+
 
 def write_console(stream_df: DataFrame):
     query = (
@@ -82,4 +136,7 @@ def write_console(stream_df: DataFrame):
 spark = spark_init()
 stream_df = read_stream(spark)
 df = read_data(spark)
-df.show(10)
+result = join(df, stream_df)
+save_data(result)
+
+write_console(result)
